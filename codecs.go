@@ -1,7 +1,6 @@
 package codecs
 
 import (
-	"fmt"
 	"reflect"
 	"time"
 
@@ -134,7 +133,6 @@ func (e *structCodec) DecodeValue(ectx bsoncodec.DecodeContext, vr bsonrw.ValueR
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%t", res["substruct"].(map[string]interface{})["subnum"])
 	val.Set(reflect.ValueOf(*ToStruct(res)))
 	return nil
 }
@@ -192,7 +190,6 @@ func readStruct(docreader bsonrw.DocumentReader) (map[string]interface{}, error)
 				return nil, err
 			}
 		default:
-			fmt.Printf("%v", valueReader.Type())
 			panic("Unknown type")
 		}
 	}
