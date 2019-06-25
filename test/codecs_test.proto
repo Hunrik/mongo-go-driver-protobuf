@@ -3,8 +3,9 @@ package test;
 
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
+import "google/protobuf/struct.proto";
 
-import "pmongo/objectid.proto";
+// import "pmongo/objectid.proto";
 
 message Data{
     google.protobuf.BoolValue boolValue = 1;
@@ -27,5 +28,7 @@ message Data{
 
     google.protobuf.Timestamp timestamp = 10;
 
-    pmongo.ObjectId id = 11;
+    // pmongo.ObjectId id = 11;
+
+    google.protobuf.Struct structValue = 12;
 }

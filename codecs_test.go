@@ -6,14 +6,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/protobuf/jsonpb"
-	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/wrappers"
+	assert "github.com/stretchr/testify/require"
+
+	"github.com/gogo/protobuf/jsonpb"
+
+	"github.com/gogo/protobuf/types"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
-	"github.com/amsokol/mongo-go-driver-protobuf/pmongo"
-	"github.com/amsokol/mongo-go-driver-protobuf/test"
+	"github.com/Hunrik/mongo-go-driver-protobuf/pmongo"
+	"github.com/Hunrik/mongo-go-driver-protobuf/test"
 )
 
 func TestCodecs(t *testing.T) {
@@ -25,11 +27,8 @@ func TestCodecs(t *testing.T) {
 	tm = time.Date(tm.Year(), tm.Month(), tm.Day(), tm.Hour(), tm.Minute(), tm.Second(),
 		(tm.Nanosecond()/1000000)*1000000, tm.Location())
 
-	ts, err := ptypes.TimestampProto(tm)
-	if err != nil {
-		t.Errorf("ptypes.TimestampProto error = %v", err)
-		return
-	}
+	ts, err := types.TimestampProto(tm)
+	assert.NoError(t, err)
 
 	objectID := primitive.NewObjectID()
 	id := pmongo.NewObjectId(objectID)
@@ -48,17 +47,53 @@ func TestCodecs(t *testing.T) {
 	})
 
 	in := test.Data{
-		BoolValue:   &wrappers.BoolValue{Value: true},
-		BytesValue:  &wrappers.BytesValue{Value: make([]byte, 5)},
-		DoubleValue: &wrappers.DoubleValue{Value: 1.2},
-		FloatValue:  &wrappers.FloatValue{Value: 1.3},
-		Int32Value:  &wrappers.Int32Value{Value: -12345},
-		Int64Value:  &wrappers.Int64Value{Value: -123456789},
-		StringValue: &wrappers.StringValue{Value: "qwerty"},
-		Uint32Value: &wrappers.UInt32Value{Value: 12345},
-		Uint64Value: &wrappers.UInt64Value{Value: 123456789},
-		Timestamp:   ts,
-		Id:          id,
+		BoolValue:   &types.BoolValue{Value: true},
+		BytesValue:  &types.BytesValue{Value: make([]byte, 5)},
+		DoubleValue: &types.DoubleValue{Value: 1.2},
+		FloatValue:  &types.FloatValue{Value: 1.3},
+		Int32Value:  &types.Int32Value{Value: -12345},
+		Int64Value:  &types.Int64Value{Value: -123456789},
+		StringValue: &types.StringValue{Value: "qwerty"},
+		Uint32Value: &types.UInt32Value{Value: 12345},
+		Uint64Value: &types.UInt64Value{Value: 123456789},
+		StructValue: &types.Struct{
+			Fields: map[string]*types.Value{
+				"string": &types.Value{
+					Kind: &types.Value_StringValue{
+						StringValue: "foo",
+					},
+				},
+				"int": &types.Value{
+					Kind: &types.Value_NumberValue{
+						NumberValue: 64,
+					},
+				},
+				"bool": &types.Value{
+					Kind: &types.Value_BoolValue{
+						BoolValue: true,
+					},
+				},
+				"substruct": &types.Value{
+					Kind: &types.Value_StructValue{
+						StructValue: &types.Struct{
+							Fields: map[string]*types.Value{
+								"subfoo": &types.Value{
+									Kind: &types.Value_StringValue{
+										StringValue: "bar",
+									},
+								},
+								"subnum": &types.Value{
+									Kind: &types.Value_NumberValue{
+										NumberValue: 42.42,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Timestamp: ts,
 	}
 
 	t.Run("marshal/unmarshal", func(t *testing.T) {
@@ -75,10 +110,7 @@ func TestCodecs(t *testing.T) {
 			return
 		}
 
-		if !reflect.DeepEqual(in, out) {
-			t.Errorf("failed: in=%#v, out=%#v", in, out)
-			return
-		}
+		assert.Equal(t, in, out)
 	})
 
 	t.Run("marshal-jsonpb/unmarshal-jsonpb", func(t *testing.T) {
@@ -86,20 +118,13 @@ func TestCodecs(t *testing.T) {
 
 		m := &jsonpb.Marshaler{}
 
-		if err := m.Marshal(&b, &in); err != nil {
-			t.Errorf("jsonpb.Marshaler.Marshal error = %v", err)
-			return
-		}
+		err := m.Marshal(&b, &in)
+		assert.NoError(t, err)
 
 		var out test.Data
-		if err = jsonpb.Unmarshal(&b, &out); err != nil {
-			t.Errorf("jsonpb.Unmarshal error = %v", err)
-			return
-		}
+		err = jsonpb.Unmarshal(&b, &out)
+		assert.NoError(t, err)
 
-		if !reflect.DeepEqual(in, out) {
-			t.Errorf("failed: in=%#v, out=%#v", in, out)
-			return
-		}
+		assert.Equal(t, in, out)
 	})
 }

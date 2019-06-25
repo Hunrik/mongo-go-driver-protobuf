@@ -14,7 +14,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
-	"github.com/amsokol/mongo-go-driver-protobuf"
+	"github.com/Hunrik/mongo-go-driver-protobuf"
 )
 
 func main() {

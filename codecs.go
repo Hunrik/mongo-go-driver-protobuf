@@ -1,36 +1,42 @@
 package codecs
 
 import (
+	"fmt"
 	"reflect"
 	"time"
 
+	"go.mongodb.org/mongo-driver/bson/bsontype"
+
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/timestamp"
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"go.mongodb.org/mongo-driver/bson/bsoncodec"
 	"go.mongodb.org/mongo-driver/bson/bsonrw"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
-	"github.com/amsokol/mongo-go-driver-protobuf/pmongo"
+	"github.com/Hunrik/mongo-go-driver-protobuf/pmongo"
+	"github.com/gogo/protobuf/types"
 )
 
 var (
-	// Protobuf wrappers types
-	boolValueType   = reflect.TypeOf(wrappers.BoolValue{})
-	bytesValueType  = reflect.TypeOf(wrappers.BytesValue{})
-	doubleValueType = reflect.TypeOf(wrappers.DoubleValue{})
-	floatValueType  = reflect.TypeOf(wrappers.FloatValue{})
-	int32ValueType  = reflect.TypeOf(wrappers.Int32Value{})
-	int64ValueType  = reflect.TypeOf(wrappers.Int64Value{})
-	stringValueType = reflect.TypeOf(wrappers.StringValue{})
-	uint32ValueType = reflect.TypeOf(wrappers.UInt32Value{})
-	uint64ValueType = reflect.TypeOf(wrappers.UInt64Value{})
+	// Protobuf types types
+	boolValueType   = reflect.TypeOf(types.BoolValue{})
+	bytesValueType  = reflect.TypeOf(types.BytesValue{})
+	doubleValueType = reflect.TypeOf(types.DoubleValue{})
+	floatValueType  = reflect.TypeOf(types.FloatValue{})
+	int32ValueType  = reflect.TypeOf(types.Int32Value{})
+	int64ValueType  = reflect.TypeOf(types.Int64Value{})
+	stringValueType = reflect.TypeOf(types.StringValue{})
+	uint32ValueType = reflect.TypeOf(types.UInt32Value{})
+	uint64ValueType = reflect.TypeOf(types.UInt64Value{})
 
 	// Protobuf Timestamp type
 	timestampType = reflect.TypeOf(timestamp.Timestamp{})
 
 	// Time type
 	timeType = reflect.TypeOf(time.Time{})
+
+	// Struct type
+	structType = reflect.TypeOf(types.Struct{})
 
 	// ObjectId type
 	objectIDType          = reflect.TypeOf(pmongo.ObjectId{})
@@ -40,9 +46,160 @@ var (
 	wrapperValueCodecRef = &wrapperValueCodec{}
 	timestampCodecRef    = &timestampCodec{}
 	objectIDCodecRef     = &objectIDCodec{}
+	structCodecRef       = &structCodec{}
 )
 
-// wrapperValueCodec is codec for Protobuf type wrappers
+// structCodec is codec for Protobuf Struct
+type structCodec struct {
+}
+
+// EncodeValue encodes Protobuf Struct wrapper value to BSON value
+func (e *structCodec) EncodeValue(ectx bsoncodec.EncodeContext, vw bsonrw.ValueWriter, val reflect.Value) error {
+	struc := val.Interface().(types.Struct)
+	return writeStruct(vw, struc)
+}
+
+func writeStruct(vw bsonrw.ValueWriter, val types.Struct) error {
+	docW, err := vw.WriteDocument()
+	if err != nil {
+		return err
+	}
+	defer docW.WriteDocumentEnd()
+
+	if val.Fields == nil {
+		return nil
+	}
+
+	for key, val := range val.Fields {
+		valW, err := docW.WriteDocumentElement(key)
+		if err != nil {
+			return err
+		}
+		if err := writeField(valW, val); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func writeField(vw bsonrw.ValueWriter, val *types.Value) error {
+	switch k := val.Kind.(type) {
+	case *types.Value_NullValue:
+		if err := vw.WriteNull(); err != nil {
+			return err
+		}
+	case *types.Value_NumberValue:
+		if err := vw.WriteDouble(k.NumberValue); err != nil {
+			return err
+		}
+	case *types.Value_StringValue:
+		if err := vw.WriteString(k.StringValue); err != nil {
+			return err
+		}
+	case *types.Value_BoolValue:
+		if err := vw.WriteBoolean(k.BoolValue); err != nil {
+			return err
+		}
+	case *types.Value_StructValue:
+		return writeStruct(vw, *k.StructValue)
+	case *types.Value_ListValue:
+		arrW, err := vw.WriteArray()
+		if err != nil {
+			return err
+		}
+		vw, err := arrW.WriteArrayElement()
+		if err != nil {
+			return err
+		}
+		s := make([]interface{}, len(k.ListValue.Values))
+		for i, e := range k.ListValue.Values {
+			s[i] = writeField(vw, e)
+		}
+		if err := arrW.WriteArrayEnd(); err != nil {
+			return err
+		}
+	default:
+		panic("unknown kind")
+	}
+	return nil
+}
+
+// DecodeValue decodes BSON value to Protobuf Struct type value
+func (e *structCodec) DecodeValue(ectx bsoncodec.DecodeContext, vr bsonrw.ValueReader, val reflect.Value) error {
+	docread, err := vr.ReadDocument()
+	if err != nil {
+		return err
+	}
+	res, err := readStruct(docread)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%t", res["substruct"].(map[string]interface{})["subnum"])
+	val.Set(reflect.ValueOf(*ToStruct(res)))
+	return nil
+}
+
+func readStruct(docreader bsonrw.DocumentReader) (map[string]interface{}, error) {
+	res := make(map[string]interface{})
+	for {
+		key, valueReader, err := docreader.ReadElement()
+		if err != nil {
+			break
+		}
+		switch valueReader.Type() {
+		case bsontype.String:
+			str, err := valueReader.ReadString()
+			if err != nil {
+				return nil, err
+			}
+			res[key] = str
+		case bsontype.Double:
+			val, err := valueReader.ReadDouble()
+			if err != nil {
+				return nil, err
+			}
+			res[key] = val
+		case bsontype.Int32:
+			val, err := valueReader.ReadInt32()
+			if err != nil {
+				return nil, err
+			}
+			res[key] = val
+		case bsontype.Int64:
+			val, err := valueReader.ReadInt64()
+			if err != nil {
+				return nil, err
+			}
+			res[key] = val
+		case bsontype.Boolean:
+			val, err := valueReader.ReadBoolean()
+			if err != nil {
+				return nil, err
+			}
+			res[key] = val
+		case bsontype.Null:
+			if err := valueReader.ReadNull(); err != nil {
+				return nil, err
+			}
+			res[key] = nil
+		case bsontype.EmbeddedDocument:
+			doc, err := valueReader.ReadDocument()
+			if err != nil {
+				return nil, err
+			}
+			res[key], err = readStruct(doc)
+			if err != nil {
+				return nil, err
+			}
+		default:
+			fmt.Printf("%v", valueReader.Type())
+			panic("Unknown type")
+		}
+	}
+	return res, nil
+}
+
+// wrapperValueCodec is codec for Protobuf type types
 type wrapperValueCodec struct {
 }
 
@@ -151,5 +308,6 @@ func Register(rb *bsoncodec.RegistryBuilder) *bsoncodec.RegistryBuilder {
 		RegisterCodec(uint32ValueType, wrapperValueCodecRef).
 		RegisterCodec(uint64ValueType, wrapperValueCodecRef).
 		RegisterCodec(timestampType, timestampCodecRef).
+		RegisterCodec(structType, structCodecRef).
 		RegisterCodec(objectIDType, objectIDCodecRef)
 }

@@ -5,7 +5,7 @@ package main
 
 import (
 	fmt "fmt"
-	pmongo "github.com/amsokol/mongo-go-driver-protobuf/pmongo"
+	pmongo "github.com/Hunrik/mongo-go-driver-protobuf/pmongo"
 	_ "github.com/amsokol/protoc-gen-gotag/tagger"
 	proto "github.com/golang/protobuf/proto"
 	timestamp "github.com/golang/protobuf/ptypes/timestamp"
