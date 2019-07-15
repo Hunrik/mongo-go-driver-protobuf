@@ -10,9 +10,6 @@ import (
 // ToStruct converts a map[string]interface{} to a ptypes.Struct
 func ToStruct(v map[string]interface{}) *st.Struct {
 	size := len(v)
-	if size == 0 {
-		return nil
-	}
 	fields := make(map[string]*st.Value, size)
 	for k, v := range v {
 		fields[k] = ToValue(v)

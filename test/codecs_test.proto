@@ -31,4 +31,6 @@ message Data{
     // pmongo.ObjectId id = 11;
 
     google.protobuf.Struct structValue = 12;
+
+    google.protobuf.Struct emptyStructValue = 14;
 }

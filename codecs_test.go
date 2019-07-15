@@ -93,6 +93,9 @@ func TestCodecs(t *testing.T) {
 				},
 			},
 		},
+		EmptyStructValue: &types.Struct{
+			Fields: map[string]*types.Value{},
+		},
 		Timestamp: ts,
 	}
 
